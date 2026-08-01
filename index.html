@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>米娅 Mia</title>
+<style>
+  * { margin: 0; padding: 0; }
+  body {
+    background: #1a1a2e;
+    overflow: hidden;
+    height: 100vh;
+    cursor: default;
+    user-select: none;
+  }
+  #floor {
+    position: absolute;
+    bottom: 0;
+    width: 100%;
+    height: 60px;
+    background: #16213e;
+  }
+  #mia {
+    position: absolute;
+    bottom: 60px;
+    left: 50%;
+    cursor: pointer;
+    transition: transform 0.1s;
+  }
+  #meow {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 24px;
+    color: #e8d5b7;
+    opacity: 0;
+    pointer-events: none;
+    font-family: sans-serif;
+    transition: opacity 0.3s;
+  }
+  #zzz {
+    position: absolute;
+    font-size: 18px;
+    color: #e8d5b799;
+    opacity: 0;
+    pointer-events: none;
+    font-family: sans-serif;
+  }
+  #name-tag {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #e8d5b766;
+    font-family: sans-serif;
+    font-size: 12px;
+    letter-spacing: 4px;
+  }
+</style>
+</head>
+<body>
+<div id="floor"></div>
+<canvas id="mia" width="80" height="70"></canvas>
+<div id="meow"></div>
+<div id="zzz"></div>
+<div id="name-tag">MIA · 米娅</div>
+
+<script>
+const canvas = document.getElementById('mia');
+const ctx = canvas.getContext('2d');
+const meowEl = document.getElementById('meow');
+const zzzEl = document.getElementById('zzz');
+
+// 紫金渐层配色
+const colors = {
+  body: '#c4a265',
+  bodyDark: '#a8894f',
+  bodyLight: '#e8d5b7',
+  stripes: '#8b7040',
+  nose: '#d4878f',
+  eyes: '#5c8a4d',
+  eyesClosed: '#a8894f',
+  inner_ear: '#d4a0a0',
+};
+
+let state = 'idle'; // idle, walking, sleeping, squint
+let direction = 1; // 1=right, -1=left
+let posX = window.innerWidth / 2 - 40;
+let walkTarget = posX;
+let idleTimer = 0;
+let sleepTimer = 0;
+let animFrame = 0;
+let tailAngle = 0;
+let eyeSquint = 0; // 0=open, 1=squint
+let squintTimer = 0;
+let meowTimeout = null;
+
+function drawCat(sleeping, squint) {
+  ctx.clearRect(0, 0, 80, 70);
+  ctx.save();
+  if (direction === -1) {
+    ctx.translate(80, 0);
+    ctx.scale(-1, 1);
+  }
+
+  // tail
+  ctx.save();
+  ctx.translate(12, 42);
+  ctx.rotate(Math.sin(tailAngle) * 0.3);
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.quadraticCurveTo(-15, -20, -8, -35);
+  ctx.lineWidth = 5;
+  ctx.strokeStyle = colors.bodyDark;
+  ctx.lineCap = 'round';
+  ctx.stroke();
+  ctx.restore();
+
+  // body
+  ctx.beginPath();
+  ctx.ellipse(40, 50, 22, 16, 0, 0, Math.PI * 2);
+  ctx.fillStyle = colors.body;
+  ctx.fill();
+
+  // body stripes
+  ctx.strokeStyle = colors.stripes;
+  ctx.lineWidth = 1.5;
+  ctx.globalAlpha = 0.3;
+  for (let i = 0; i < 3; i++) {
+    ctx.beginPath();
+    ctx.moveTo(30 + i * 8, 38);
+    ctx.lineTo(28 + i * 8, 58);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+
+  // legs
+  if (!sleeping) {
+    let legOffset = state === 'walking' ? Math.sin(animFrame * 0.2) * 3 : 0;
+    ctx.fillStyle = colors.bodyDark;
+    ctx.fillRect(28, 58 + legOffset, 6, 10);
+    ctx.fillRect(46, 58 - legOffset, 6, 10);
+    // paws
+    ctx.fillStyle = colors.bodyLight;
+    ctx.beginPath(); ctx.ellipse(31, 68 + legOffset, 5, 3, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(49, 68 - legOffset, 5, 3, 0, 0, Math.PI * 2); ctx.fill();
+  } else {
+    // tucked legs
+    ctx.fillStyle = colors.bodyLight;
+    ctx.beginPath(); ctx.ellipse(28, 62, 6, 4, -0.2, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(52, 62, 6, 4, 0.2, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // head
+  ctx.beginPath();
+  ctx.ellipse(52, 35, 18, 16, 0.1, 0, Math.PI * 2);
+  ctx.fillStyle = colors.body;
+  ctx.fill();
+
+  // ears
+  ctx.beginPath();
+  ctx.moveTo(40, 24); ctx.lineTo(38, 8); ctx.lineTo(50, 20);
+  ctx.fillStyle = colors.body;
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(56, 22); ctx.lineTo(60, 6); ctx.lineTo(66, 18);
+  ctx.fill();
+  // inner ears
+  ctx.beginPath();
+  ctx.moveTo(42, 22); ctx.lineTo(41, 12); ctx.lineTo(48, 20);
+  ctx.fillStyle = colors.inner_ear;
+  ctx.globalAlpha = 0.4;
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(58, 21); ctx.lineTo(60, 10); ctx.lineTo(64, 18);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  // head stripes
+  ctx.strokeStyle = colors.stripes;
+  ctx.lineWidth = 1.5;
+  ctx.globalAlpha = 0.25;
+  ctx.beginPath(); ctx.moveTo(48, 22); ctx.lineTo(50, 30); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(53, 20); ctx.lineTo(54, 29); ctx.stroke();
+  ctx.globalAlpha = 1;
+
+  // eyes
+  if (sleeping || squint) {
+    ctx.strokeStyle = colors.eyesClosed;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(44, 35); ctx.quadraticCurveTo(47, 37, 50, 35);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(56, 34); ctx.quadraticCurveTo(59, 36, 62, 34);
+    ctx.stroke();
+  } else {
+    ctx.fillStyle = colors.eyes;
+    ctx.beginPath(); ctx.ellipse(47, 35, 3.5, 4, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(59, 34, 3.5, 4, 0, 0, Math.PI * 2); ctx.fill();
+    // pupils
+    ctx.fillStyle = '#1a1a2e';
+    ctx.beginPath(); ctx.ellipse(48, 35, 1.8, 2.5, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(60, 34, 1.8, 2.5, 0, 0, Math.PI * 2); ctx.fill();
+    // highlights
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.ellipse(49, 33.5, 0.8, 0.8, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(61, 32.5, 0.8, 0.8, 0, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // nose
+  ctx.fillStyle = colors.nose;
+  ctx.beginPath();
+  ctx.moveTo(53, 40); ctx.lineTo(51, 38); ctx.lineTo(55, 38);
+  ctx.fill();
+
+  // mouth
+  ctx.strokeStyle = colors.stripes;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(53, 40); ctx.quadraticCurveTo(50, 43, 48, 42);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(53, 40); ctx.quadraticCurveTo(56, 43, 58, 42);
+  ctx.stroke();
+
+  // whiskers
+  ctx.strokeStyle = colors.bodyLight;
+  ctx.lineWidth = 0.8;
+  ctx.globalAlpha = 0.5;
+  ctx.beginPath(); ctx.moveTo(42, 38); ctx.lineTo(28, 35); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(42, 40); ctx.lineTo(27, 40); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(64, 37); ctx.lineTo(78, 34); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(64, 39); ctx.lineTo(79, 39); ctx.stroke();
+  ctx.globalAlpha = 1;
+
+  ctx.restore();
+}
+
+function showMeow() {
+  const meows = ['喵~', '喵？', 'mia~', '喵呜', '…喵'];
+  meowEl.textContent = meows[Math.floor(Math.random() * meows.length)];
+  meowEl.style.opacity = 1;
+  if (meowTimeout) clearTimeout(meowTimeout);
+  meowTimeout = setTimeout(() => meowEl.style.opacity = 0, 1200);
+}
+
+canvas.addEventListener('click', (e) => {
+  e.stopPropagation();
+  if (state === 'sleeping') {
+    state = 'idle';
+    sleepTimer = 0;
+    idleTimer = 0;
+    zzzEl.style.opacity = 0;
+  }
+  showMeow();
+  // squint (摸头眯眼)
+  state = 'squint';
+  squintTimer = 80;
+});
+
+function pickNewTarget() {
+  walkTarget = 40 + Math.random() * (window.innerWidth - 120);
+}
+
+let frame = 0;
+function update() {
+  frame++;
+  tailAngle += 0.05;
+  animFrame++;
+
+  if (state === 'squint') {
+    squintTimer--;
+    if (squintTimer <= 0) {
+      state = 'idle';
+      idleTimer = 0;
+    }
+    drawCat(false, true);
+  } else if (state === 'sleeping') {
+    sleepTimer++;
+    // zzz animation
+    if (sleepTimer % 60 === 0) {
+      zzzEl.style.left = (posX + 70) + 'px';
+      zzzEl.style.bottom = (70 + 60 + Math.sin(sleepTimer * 0.02) * 5) + 'px';
+      zzzEl.textContent = 'z'.repeat(1 + (Math.floor(sleepTimer / 60) % 3));
+      zzzEl.style.opacity = 0.6;
+      setTimeout(() => zzzEl.style.opacity = 0, 800);
+    }
+    drawCat(true, false);
+  } else if (state === 'walking') {
+    let dx = walkTarget - posX;
+    if (Math.abs(dx) < 3) {
+      state = 'idle';
+      idleTimer = 0;
+    } else {
+      direction = dx > 0 ? 1 : -1;
+      posX += direction * 1.2;
+      canvas.style.left = posX + 'px';
+    }
+    drawCat(false, false);
+  } else {
+    // idle
+    idleTimer++;
+    if (idleTimer > 300 && Math.random() < 0.01) {
+      state = 'walking';
+      pickNewTarget();
+    }
+    if (idleTimer > 600) {
+      state = 'sleeping';
+      sleepTimer = 0;
+    }
+    drawCat(false, false);
+  }
+
+  requestAnimationFrame(update);
+}
+
+// init
+canvas.style.left = posX + 'px';
+drawCat(false, false);
+update();
+
+window.addEventListener('resize', () => {
+  if (posX > window.innerWidth - 80) posX = window.innerWidth - 100;
+});
+</script>
+</body>
+</html>
